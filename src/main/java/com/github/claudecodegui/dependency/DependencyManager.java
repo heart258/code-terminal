@@ -403,14 +403,18 @@ public class DependencyManager {
 
                 log.accept("Running npm install...");
                 boolean isWsl = NodeDetector.isWslPath(nodePath);
-                Path prefixDir = isWsl
-                        ? Paths.get(NodeDetector.convertToWslPath(normalizedSdkDir.toString()))
-                        : normalizedSdkDir;
-                List<String> command = NpmPermissionHelper.buildInstallCommandWithFallback(
-                        npmPath, prefixDir, packages, attempt
-                );
+                List<String> command;
                 if (isWsl) {
+                    // Pass the WSL Unix path as a raw String — wrapping it in Paths.get() on
+                    // Windows would convert forward slashes to backslashes (e.g. /home/foo →
+                    // \home\foo), which WSL npm cannot resolve as a Linux absolute path.
+                    String wslPrefix = NodeDetector.convertToWslPath(normalizedSdkDir.toString());
+                    command = NpmPermissionHelper.buildInstallCommandWithFallback(
+                            npmPath, wslPrefix, packages, attempt);
                     command.add(0, "wsl");
+                } else {
+                    command = NpmPermissionHelper.buildInstallCommandWithFallback(
+                            npmPath, normalizedSdkDir, packages, attempt);
                 }
                 log.accept("Command: " + String.join(" ", command));
 

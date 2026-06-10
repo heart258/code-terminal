@@ -135,14 +135,16 @@ public final class WslPathUtil {
         if (filePath == null || filePath.isEmpty() || basePath == null) {
             return false;
         }
-        String normalizedFile = convertToWslPath(filePath);
-        String normalizedBase = convertToWslPath(basePath);
-        if (normalizedFile != null && normalizedBase != null
-                && normalizedFile.startsWith("/") && normalizedBase.startsWith("/")) {
-            // foldPosix instead of Paths.normalize(): the latter applies Windows semantics to
-            // Linux paths when the JVM runs on Windows.
-            normalizedFile = foldPosix(normalizedFile);
-            normalizedBase = foldPosix(normalizedBase);
+        // Only WSL Linux paths on a Windows JVM (e.g. "/home/x", or "//wsl$/..." which
+        // convertToWslPath folds to it) need the lexical fallback: getCanonicalPath would
+        // misread "/home/x" as a drive-relative path there. Every other path — native POSIX
+        // paths on macOS/Linux, and Windows drive/UNC paths — MUST go through getCanonicalPath
+        // so symlinks, "..", and encoded chars are resolved before the project-boundary check.
+        // Using foldPosix for native POSIX paths silently strips symlink resolution and lets a
+        // symlink inside the project escape the boundary, weakening the auto-approve gate.
+        if (isWslPath(filePath) || isWslPath(basePath)) {
+            String normalizedFile = foldPosix(convertToWslPath(filePath));
+            String normalizedBase = foldPosix(convertToWslPath(basePath));
             if (normalizedFile == null || normalizedBase == null) {
                 return false;
             }
